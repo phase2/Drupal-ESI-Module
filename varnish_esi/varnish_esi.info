@@ -1,0 +1,8 @@
+; $Id$
+name = Varnish ESI
+description = Plugins for the ESI module for use with Varnish
+package = Caching
+recommends[] = varnish
+core = 6.x
+php = 5.1
+

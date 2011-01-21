@@ -1,0 +1,7 @@
+<?php
+
+function varnish_esi_ctools_plugin_api($module, $api) {
+  if ($module == 'esi' && $api == 'esi') {
+    return array('version' => 1);
+  }
+}

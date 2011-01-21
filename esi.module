@@ -15,7 +15,9 @@ define('ESI__BLOCK_CONFIG_DEFAULT__IS_ENABLED', TRUE);
 // Default TTL for blocks: 5 minutes
 define('ESI__BLOCK_CONFIG_DEFAULT__TTL', 300);
 
-
+// Plugin Versions
+define('ESI__MINIMUM_VERSION', 1);
+define('ESI__VERSION', 1);
 
 /**
  * Implementation of hook_theme().
@@ -250,4 +252,12 @@ function esi__block_handler($bid, $page = NULL) {
 
   echo $output;
   return NULL;
+}
+
+/**
+ * wrapper function for loading all modules providing a plugin
+ */
+function esi_include_api() {
+  ctools_include('plugins');
+  return ctools_plugin_api_include('esi', 'esi', ESI__MINIMUM_VERSION, ESI__VERSION);
 }
