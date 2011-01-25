@@ -15,19 +15,16 @@ function esi__theme_blocks($region) {
 
   if ($list = block_list($region)) {
     foreach ($list as $key => $block) {
-      $plugins = esi_include_api();
+      $handler = variable_get('esi_block_handler', 'esi');
+      ctools_include('plugins');
+      $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');
+
       // if ESI's enabled on the block, add an ESI tag instead of block content.
       $esi_config = _esi__block_settings($block->module, $block->delta);
 
-      if ($esi_config->enabled && !empty($plugins)) {
-        foreach(esi_include_api() as $module => $info) {
-          $function = $module . '_esi_block';
-          if (!function_exists($function)) {
-            continue;
-          }
-          // TODO: if multiple plugin providing modules are enabled, this is going to go very wrong
-          $output .= $function($block);
-        }
+      if ($esi_config->enabled) {
+        $esi_block = new $class();
+        $output .= $esi_block->replace_block($block);
       }
       else {
         $output .= theme('block', $block);

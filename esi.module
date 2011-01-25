@@ -15,10 +15,6 @@ define('ESI__BLOCK_CONFIG_DEFAULT__IS_ENABLED', TRUE);
 // Default TTL for blocks: 5 minutes
 define('ESI__BLOCK_CONFIG_DEFAULT__TTL', 300);
 
-// Plugin Versions
-define('ESI__MINIMUM_VERSION', 1);
-define('ESI__VERSION', 1);
-
 /**
  * Implementation of hook_theme().
  */
@@ -59,10 +55,45 @@ function esi_menu() {
       'page arguments' => array(2),
       'access callback' => TRUE,
       'type' => MENU_CALLBACK
+    ),
+    'admin/settings/esi' => array(
+      'title' => 'ESI Configuration',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('esi_settings_form'),
+      'access arguments' => array('administer esi settings'),
     )
   );
 }
 
+
+/**
+ * Provide configuration form for specifying which plugin to use
+ */
+function esi_settings_form() {
+  $form = array();
+  ctools_include('plugins');
+  $plugs = ctools_get_plugins('esi', 'plugins');
+
+  $plugin_handlers = array('block_handler' => 'Block',
+                           'theme_handler' => 'Theme',
+                           'form_handler' => 'Form');
+  foreach ($plugin_handlers as $handler => $label) {
+    $options = array();
+    foreach ($plugs as $key => $data) {
+      if (isset($data[$handler])) {
+        $options[$key] = $data['name'];
+      }
+    }
+    $form['esi_' . $handler] = array(
+      '#title' => t('ESI !plugin plugin', array('!plugin' => $label)),
+      '#description' => t('Choose the plugin to use for processing !plugin elements', array('!plugin' => $label)),
+      '#type' => 'select',
+      '#options' => $options,
+      '#default_value' => variable_get('esi_' . $handler, 'esi'),
+    );
+  }
+  return (system_settings_form($form));
+}
 
 /**
  * Implementation of hook_cron().
@@ -198,66 +229,48 @@ function esi__block_config_save($form, $form_state) {
  * Render a particular block.
  */
 function esi__block_handler($bid, $page = NULL) {
-  require_once(dirname(__FILE__)  . '/esi.inc');
-
-  /**
-   * Expect the bid format to be theme:region:module:delta
-   * Fail if this doesn't match.
-   */
-  if (!substr_count($bid, ':') == 3) {
-    return FALSE;
-  }
-  list($theme, $region, $module, $delta) = explode(':', $bid);
-
-  // Block content may change per-page.
-  // If this is true for the current block, the origin page url should be
-  // provided as an argument.
-  if ($page) {
-    $_GET['q'] = base64_decode($page);
-  }
-
-  // theme set-up.
-  // we need to do this manually, because output is echo'd instead of returned.
-  init_theme();
-
-  // get the block into a format that can be passed to view-blockk.
-  $block = _esi__get_block($theme, $region, $module, $delta);
-  $output = theme('block', $block);
-  /**
-   * Pass PER-USER or PER-ROLE cache info to varnish.
-   *
-   * No-cache is header (TTL) controlled.
-   * Per-page is passed as a url argument
-   */
-  if ($block->cache == BLOCK_NO_CACHE) {
-    header("Cache-Control: no-cache, max-age=0");
-  }
-  elseif ($block->cache & BLOCK_CACHE_PER_USER) {
-    // "Cache-control: private" advises proxies that the content is
-    // user-specific.  Most proxies will not cache this data - a clever proxy
-    // config may make this cacheable.
-    header("Cache-Control: private");
-    header("X-BLOCK-CACHE: " . BLOCK_CACHE_PER_USER);
-  }
-  elseif ($block->cache & BLOCK_CACHE_PER_ROLE) {
-    header("Cache-Control: private");
-    header("X-BLOCK-CACHE: " . BLOCK_CACHE_PER_ROLE);
-  }
-
-  // For all cacheable blocks, set the TTL based on the block config.
-  if ($block->cache != BLOCK_NO_CACHE) {
-    $config = _esi__block_settings($module, $delta);
-    header("Cache-Control: max-age={$config->ttl}");
-  }
-
-  echo $output;
+  $handler = variable_get('esi_block_handler', 'esi');
+  ctools_include('plugins');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');
+  $esi_block = new $class();
+  echo $esi_block->get_block($bid, $page);
   return NULL;
 }
 
 /**
- * wrapper function for loading all modules providing a plugin
+ * hooks for esi module plugins
  */
-function esi_include_api() {
-  ctools_include('plugins');
-  return ctools_plugin_api_include('esi', 'esi', ESI__MINIMUM_VERSION, ESI__VERSION);
+function esi_esi_plugins() {
+  return array(
+    'esi' => array(
+      'name' => 'ESI Default Handler',
+      'block_handler' => array(
+        'class' => 'esi_block',
+        'path' => drupal_get_path('module', 'esi') .'/classes',
+        'file' => 'esi_block.inc',
+      ),
+
+      'theme_handler' => array(
+        'class' => 'esi_theme',
+        'path' => drupal_get_path('module', 'esi') .'/classes',
+        'file' => 'esi_theme.inc',
+      ),
+
+      'form_handler' => array(
+        'class' => 'esi_form',
+        'path' => drupal_get_path('module', 'esi') .'/classes',
+        'file' => 'esi_form.inc',
+      ),
+    ),
+  );
+}
+
+
+/**
+ * ctools hooks for modules allowing plugins
+ */
+function esi_ctools_plugin_plugins() {
+  return array(
+    'use hooks' => TRUE,
+  );
 }

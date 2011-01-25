@@ -1,7 +1,15 @@
 <?php
 
-function varnish_esi_ctools_plugin_api($module, $api) {
-  if ($module == 'esi' && $api == 'esi') {
-    return array('version' => 1);
-  }
+function varnish_esi_esi_plugins() {
+  return array(
+    'varnish_esi' => array(
+      'name' => 'Varnish',
+      'block_handler' => array(
+        'class' => 'varnish_esi_block',
+        'path' => drupal_get_path('module', 'varnish_esi') .'/classes',
+        'file' => 'varnish_esi_block.inc',
+        'parent' => 'esi',
+      ),
+    ),
+  );
 }
