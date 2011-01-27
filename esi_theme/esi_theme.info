@@ -1,0 +1,3 @@
+name = ESI Theme
+description = Shows how a module can allow themed elements to be replaced via the ESI module
+core = 6.x

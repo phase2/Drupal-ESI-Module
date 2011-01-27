@@ -39,7 +39,113 @@ function esi_theme_registry_alter(&$theme_registry) {
   $theme_registry['blocks']['include files'] = array( "./{$path}/esi.theme.inc");
   $theme_registry['blocks']['theme path']  = $path;
   $theme_registry['blocks']['theme paths'] = array($path);
+
+  // let other modules declare themeable elements eligible for replacement
+  $values = module_invoke_all('esisource');
+  $theme_keys = array_keys($values['theme']);
+
+  foreach ($theme_keys as $theme_key) {
+    $theme_registry[$theme_key]['preprocess functions'][] = 'esi_preprocess_esi';
+    $theme_registry[$theme_key]['theme paths'][] = drupal_get_path('module', 'esi') . '/theme';
+  }
 }
+
+function esi_preprocess_esi(&$vars, $hook) {
+  if (esi_send_esi('theme')) {
+    $values = module_invoke_all('esisource');
+    $source = "esi/theme/$hook/" . esi_parse_source($values['theme'][$hook]['source arguments']);
+    $vars['template_files'][] = 'esi_source';
+    $vars['esi_source'] = $source;
+  }
+}
+
+/**
+ * Callback function to return the plain-text content of a theme function. Given the theme_key
+ * it prints the content of the rendered theme element for use as an Edge-side include.
+ *
+ * @param $theme_key
+ *    The string theme key to replace as an edge-side include
+ */
+function esi__theme_handler($theme_key) {
+  $values = module_invoke_all('esisource');
+  $esi_data = $values['theme'][$theme_key];
+
+  $callbacks = $esi_data['argument callbacks'];
+  $callback_vars = array();
+  $arg_pos = 3; // esi/theme/$theme_key/3/4/5/6/7...
+  foreach ($callbacks as $callback_var => $callback) {
+    // TODO This needs a heavy security audit, just to be sure
+    $arg = filter_xss(check_plain(arg($arg_pos)));
+    $callback_vars[$callback_var] = $callback($arg);
+    $arg_pos ++; 
+  }
+
+  $variables = $esi_data['theme variables'];
+  $theme_vars = array($theme_key);
+  foreach ($variables as $variable => $callback_data) {
+    // If this is a scalar that starts with '%', then no callback sould be executed; instead,
+    // The corresponding variable in the callback_vars should be used. 
+    if(!is_array($callback_data)) {
+      $callback_data = ltrim($callback_data, '%');
+      $theme_vars[$variable] = $callback_vars[$callback_data];
+    } else {
+      foreach ($callback_data as $callback => $varnames) {
+        $theme_vars[$variable] = call_user_func_array($callback, $callback_vars);
+      }
+    }
+  }
+
+  $output = call_user_func_array('theme', $theme_vars);
+  echo $output;
+  return NULL;
+}
+
+
+/**
+ * Determines whether the item being displayed should be replaced by a content include
+ * Should not replace if 
+ *   this is the request to get the content (arg(0) == 'esi')
+ *   content isn't being viewed behind an ESI viewer
+ *
+ */
+function esi_send_esi($type) {
+  $handler = variable_get('esi_theme_handler', 'esi');
+  ctools_include('plugins');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'theme_handler');
+  if ($class) {
+    $ho = new $class(); 
+    return $ho->send_esi();
+  }
+  return FALSE;
+}
+
+function esi_parse_source($elements = array()) {
+  $new_elements = array();
+  foreach ($elements as $element) {
+    if (strpos($element, '%') === 0) {
+      $element = ltrim($element, '%');
+      $func = "esi_{$element}_get_val";
+      if (function_exists($func)) {
+        $element = $func();
+      }   
+    }   
+    $new_elements[] = $element;
+  }
+  return implode('/', $new_elements);
+}
+
+function esi_nid_get_val() {
+  if (arg(0) == 'node' && is_numeric(arg(1))) {
+    return intval(arg(1));
+  }
+}
+
+function esi_uid_get_val() {
+  if (arg(0) == 'user' && is_numeric(arg(1))) {
+    return intval(arg(1));
+  }
+}
+
 
 
 
@@ -50,8 +156,15 @@ function esi_theme_registry_alter(&$theme_registry) {
 function esi_menu() {
   return array(
     'esi/block/%' => array(
-      'title' => 'ESI handler',
+      'title' => 'ESI Block handler',
       'page callback' => 'esi__block_handler',
+      'page arguments' => array(2),
+      'access callback' => TRUE,
+      'type' => MENU_CALLBACK
+    ),
+    'esi/theme/%' => array(
+      'title' => 'ESI Theme handler',
+      'page callback' => 'esi__theme_handler',
       'page arguments' => array(2),
       'access callback' => TRUE,
       'type' => MENU_CALLBACK

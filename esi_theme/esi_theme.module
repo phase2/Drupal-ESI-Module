@@ -1,0 +1,41 @@
+<?php
+
+/**
+ * hook_theme implementation
+ */
+function esi_theme_theme() {
+  $theme = array(
+    'esi_theme_example' => array(
+      'template' => 'esi_theme_example',
+    ),
+  );
+  return $theme;
+}
+
+function esi_theme_block($op = 'list', $delta = 0, $edit = array()) {
+  switch($op) {
+    case 'list':
+      return array(
+        array(
+          'info' => 'ESI Theme Example',
+          'status' => 1,
+          'region' => 'left',
+          'weight' => 100,
+        ),
+      );
+    case 'view':
+      return array('subject' => 'ESI Theme Example Block', 'content' => theme('esi_theme_example'));
+  }
+}
+
+function esi_theme_esisource() {
+  return array(
+    'theme' => array(
+      'esi_theme_example' => array(
+        'source arguments' => array(),
+        'argument callbacks' => array(), // callback to use for source argument in this position
+        'theme variables' => array(), // setup for variables that will be passed to theme function on callback
+      ),
+    ),
+  );
+}
