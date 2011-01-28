@@ -22,7 +22,7 @@ function esi__theme_blocks($region) {
       // if ESI's enabled on the block, add an ESI tag instead of block content.
       $esi_config = _esi__block_settings($block->module, $block->delta);
 
-      if ($esi_config->enabled) {
+      if ($esi_config->enabled && $class) {
         $esi_block = new $class();
         $output .= $esi_block->replace_block($block);
       }

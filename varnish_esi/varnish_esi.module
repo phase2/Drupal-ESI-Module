@@ -1,5 +1,8 @@
 <?php
 
+/**
+ * hook for ctools plugins, hook $MODULE_$TYPE
+ */
 function varnish_esi_esi_plugins() {
   return array(
     'varnish_esi' => array(

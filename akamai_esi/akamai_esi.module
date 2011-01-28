@@ -1,0 +1,40 @@
+<?php
+
+/**
+ * hook for ctools plugins, hook $MODULE_$TYPE
+ */
+function akamai_esi_esi_plugins() {
+  return array(
+    'akamai_esi' => array(
+      'name' => 'Akamai',
+      'block_handler' => array(
+        'class' => 'akamai_esi_block',
+        // TODO: adjust to classes directory - plugins directory shown just to demonstrate flexibility of layout
+        'path' => drupal_get_path('module', 'akamai_esi') .'/plugins',
+        'file' => 'akamai_esi_block.inc',
+        'parent' => 'esi',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_user
+ * Set a session cookie on user login to use by the ESI handlers later. This simplifies
+ * having Akamai parse the cookies for 'SESS...' to get the session ID for the user.
+ */
+function akamai_esi_user($op, &$edit, &$account, $category = NULL) {
+  if ($op == 'login') {
+    global $cookie_domain;
+    setcookie('ESISESS', session_name(), 0, base_path(), $cookie_domain);
+    setcookie('ESIUKEY', md5($account->uid), 0, base_path(), $cookie_domain);
+    if (AKAMAI_ESI_DEBUG_TAGS) watchdog('akamai_esi', "Setting ESISESS/ESIUKEY cookies with domain '$cookie_domain'.");
+  }
+  elseif ($op == 'logout') {
+    global $cookie_domain;
+    setcookie('ESISESS', '', mktime(12, 0, 0, 1, 1, 1990), base_path(), $cookie_domain);
+    setcookie('ESIUKEY', '', mktime(12, 0, 0, 1, 1, 1990), base_path(), $cookie_domain);
+    if (AKAMAI_ESI_DEBUG_TAGS) watchdog('akamai_esi', t("Attempting to delete the ESI cookies"));
+  }
+}
+

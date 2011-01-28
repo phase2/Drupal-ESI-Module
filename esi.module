@@ -75,8 +75,9 @@ function esi_settings_form() {
   $plugs = ctools_get_plugins('esi', 'plugins');
 
   $plugin_handlers = array('block_handler' => 'Block',
-                           'theme_handler' => 'Theme',
-                           'form_handler' => 'Form');
+                           #'theme_handler' => 'Theme',
+                           #'form_handler' => 'Form'
+                          );
   foreach ($plugin_handlers as $handler => $label) {
     $options = array();
     foreach ($plugs as $key => $data) {
@@ -156,50 +157,49 @@ function esi_user($op, &$edit, &$account, $category = NULL) {
  *   Add ESI-configuration options to the block-config pages.
  */
 function esi_form_block_admin_configure_alter(&$form, $form_state) {
-  // TODO: describe how the cache configs can be configured as defaults in code.
+  $handler = variable_get('esi_block_handler', 'esi');
+  ctools_include('plugins');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');
+  if ($class) {
+    // TODO: describe how the cache configs can be configured as defaults in code.
 
-  // load our helper functions
-  require_once(dirname(__FILE__) . '/esi.inc');
-
-  $module = $form['module']['#value'];
-  $delta  = $form['delta']['#value'];
-  $config = _esi__block_settings($module, $delta);
-
-  $element['esi_config'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('ESI settings'),
-    '#description' => t('Control how this block is cached on an ESI-enabled reverse proxy.'),
-    '#tree' => TRUE,
-  );
-
-  $element['esi_config']['enabled'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Enable ESI'),
-    '#default_value' => $config->enabled,
-  );
-
-  $options = _esi__ttl_options($config->ttl);
-  $element['esi_config']['ttl'] = array(
-    '#type' => 'select',
-    '#title' => t('TTL'),
-    '#description' => t('Time-to-live on the proxy-cache.'),
-    '#options' => $options,
-    '#default_value' => $config->ttl,
-  );
-
-  // inject our ESI config-fieldset onto the form,
-  // just after the 'block_settings' fieldset.
-  $i = 1;
-  foreach ($form as $key => $value) {
-    if ($key == 'block_settings') {
-      break;
+    // load our helper functions
+    require_once(dirname(__FILE__) . '/esi.inc');
+  
+    $module = $form['module']['#value'];
+    $delta  = $form['delta']['#value'];
+    $config = _esi__block_settings($module, $delta);
+  
+    $element['esi_config'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('ESI settings'),
+      '#description' => t('Control how this block is cached on an ESI-enabled reverse proxy.'),
+      '#tree' => TRUE,
+    );
+  
+    $element['esi_config']['enabled'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable ESI'),
+      '#default_value' => $config->enabled,
+    );
+  
+    $h_obj = new $class();
+    $h_obj->config_form($element, $config);
+  
+    // inject our ESI config-fieldset onto the form,
+    // just after the 'block_settings' fieldset.
+    $i = 1;
+    foreach ($form as $key => $value) {
+      if ($key == 'block_settings') {
+        break;
+      }
+      $i++;
     }
-    $i++;
+    $f = array_slice($form, 0, $i);
+    $f += $element;
+    $f += array_slice($form, $i);
+    $form = $f;
   }
-  $f = array_slice($form, 0, $i);
-  $f += $element;
-  $f += array_slice($form, $i);
-  $form = $f;
 
   // add a submit-handler to save our config.
   $form['#submit'][] = 'esi__block_config_save';
@@ -215,8 +215,11 @@ function esi__block_config_save($form, $form_state) {
   $delta  = $form_state['values']['delta'];
 
   $config = new stdClass;
-  $config->enabled = $form_state['values']['esi_config']['enabled'];
-  $config->ttl     = $form_state['values']['esi_config']['ttl'];
+  // save all child keys of esi_config so that any plugin added data
+  // is saved
+  foreach ($form_state['values']['esi_config'] as $key => $value) {
+    $config->$key = $value;
+  }
 
   _esi__block_settings($module, $delta, $config);
 }

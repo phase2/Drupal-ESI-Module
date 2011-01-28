@@ -4,7 +4,6 @@
  * @file - definition for esi_block class
  */
 class esi_block {
-
   /**
    * replace_block is called to get the ESI call that should be substituted
    * instead of the contents of the block
@@ -27,6 +26,6 @@ class esi_block {
    * configure_block is called to get additional data for the block
    * configuration form
    */
-  public function get_block_config() {
+  public function config_form(&$form, $config) {
   }
 }

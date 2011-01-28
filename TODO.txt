@@ -1,0 +1,5 @@
+Make block configuration options controllable by plugins
+Determine what portion of the ESI replacement callback path should be done at the plugin level versus the ESI module level
+Add options to classes so they can declare whether to do the ESI replacement (this may wind up being inherant in the class replacement routine)
+Add in support for theme replacement
+Add in support for form replacement
