@@ -1,0 +1,19 @@
+<?php
+// $Id$
+
+/**
+ * hook for ctools plugins, hook $MODULE_$TYPE
+ */
+function varnish_esi_esi_plugins() {
+  return array(
+    'varnish_esi' => array(
+      'name' => 'Varnish',
+      'block_handler' => array(
+        'class' => 'varnish_esi_block',
+        'path' => drupal_get_path('module', 'varnish_esi') .'/classes',
+        'file' => 'varnish_esi_block.inc',
+        'parent' => 'esi',
+      ),
+    ),
+  );
+}

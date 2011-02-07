@@ -1,0 +1,8 @@
+; $Id$
+name = Akamai ESI
+description = Plugins for the ESI module for use with Akamai
+package = Caching
+recommends[] = akamai
+core = 6.x
+php = 5.1
+
