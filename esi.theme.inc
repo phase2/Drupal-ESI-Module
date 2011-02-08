@@ -39,8 +39,6 @@ function theme_esi_tag($block) {
   $bid = "{$theme_key}:{$block->region}:{$block->module}:{$block->delta}";
   $src = $base_url . "/esi/block/{$bid}";
 
-  $params = array();
-
   // if the block uses per-page cacheing, add the page param to the URL.
   if ($block->cache & BLOCK_CACHE_PER_PAGE) {
     $src .= '/' . base64_encode($_GET['q']);
@@ -52,6 +50,20 @@ function theme_esi_tag($block) {
     $src .= '/CACHE=' . ($block->cache & BLOCK_CACHE_PER_USER ? 'USER' : 'ROLE');
   }
 
-  $output = '<esi:include src="' . $src . '" />';
+  $handler = variable_get('esi_block_handler', 'esi');
+  ctools_include('plugins');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');
+  if ($class) {
+    $bh = new $class();
+    if ($bh->send_esi()) {
+      $output = $bh->replace_block($src, $block);
+    }
+    else {
+      $output = theme('block', $block);
+    }
+  }
+  else {
+    $output = '<esi:include src="' . $src . '" />';
+  }
   return $output;
 }

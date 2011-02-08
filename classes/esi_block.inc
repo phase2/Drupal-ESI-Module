@@ -5,7 +5,7 @@ class esi_block {
   }
 
   public function send_esi() {
-    return isset($_SERVER['ESI_FORCE']);
+    return isset($_GET['ESI_FORCE']);
   }
 
   public function replace_block($callback, &$block) {

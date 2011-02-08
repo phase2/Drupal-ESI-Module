@@ -17,3 +17,37 @@ function akamai_esi_esi_plugins() {
     ),
   );
 }
+
+/**
+ * Sets header necessary for telling Akamai whether to parse this page for includes
+ * and information about what can and can't be cached
+ */
+function akamai_esi_init() {
+  $ec_header = array();
+  if (_akamai_esi_send_esi()) {
+    $ec_header['dca'] = 'dca=esi';
+  }
+  if (arg(0) == 'logout') {
+    $ec_header['store'] = 'no-store';
+  }
+  elseif (arg(0) == 'openid') {
+    $ec_header['store'] = 'no-store';
+  }
+  elseif (arg(0) == 'user' && (!is_numeric(arg(1)) || !arg(1))) {
+    $ec_header['store'] = 'no-store';
+  }
+
+  if (!empty($ec_header)) {
+    drupal_set_header('Edge-control: ' . implode(', ', $ec_header));
+  }
+}
+
+function _akamai_esi_send_esi() {
+  if (function_exists('getallheaders')) {
+    $headers = getallheaders();
+    // Akamai-Origin-Hop is present behind a "true" Akamai CDN system
+    // Surrogate-Capability is an optional header set by the ETS for development
+    return (!empty($headers['Akamai-Origin-Hop']) || !empty($headers['Surrogate-Capability']) || !empty($headers['Accept-Esi']));
+  }
+  return FALSE;
+}
