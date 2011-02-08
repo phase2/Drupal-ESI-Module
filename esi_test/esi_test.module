@@ -1,0 +1,54 @@
+<?php
+
+function esi_test_block($op = 'list', $delta = 0, $edit = array()) {
+  $block_info = array(
+    'user' => array(
+      'info' => 'ESI Test Block - User',
+      'cache' => BLOCK_CACHE_PER_USER,
+    ),
+    'role' => array(
+      'info' => 'ESI Test Block - Role',
+      'cache' => BLOCK_CACHE_PER_ROLE,
+    ),
+    'page' => array(
+      'info' => 'ESI Test Block - Page',
+      'cache' => BLOCK_CACHE_PER_PAGE,
+    ),
+    'global' => array(
+      'info' => 'ESI Test Block - Global',
+      'cache' => BLOCK_CACHE_GLOBAL,
+    ),
+    'none' => array(
+      'info' => 'ESI Test Block - No Cache',
+      'cache' => BLOCK_CACHE_NO_CACHE,
+    ),
+  );
+
+  switch ($op) {
+    case 'list':
+      return $block_info;
+    case 'view':
+      $block = array();
+      $block['subject'] = $block_info[$delta]['info'];
+      switch ($delta) {
+        case 'user':
+          global $user;
+          $block['content'] = 'User ' . $user->name;
+          break;
+        case 'role':
+          global $user;
+          $block['content'] = 'User Roles ' . join(', ', array_values($user->roles));
+          break;
+        case 'page':
+          $block['content'] = 'Page ' . $_GET['q'];
+          break;
+        case 'global':
+          $block['content'] = 'Global with a random value ' . rand();
+          break;
+        case 'none':
+          $block['content'] = 'Random Value ' . rand();
+          break;
+      }
+      return $block;
+  }
+}

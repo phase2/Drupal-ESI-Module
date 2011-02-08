@@ -1,0 +1,8 @@
+; $Id$
+name = ESI Test Items
+description = Provides objects useful for testing and debugging the ESI module and plugins
+requires[] = esi
+package = Caching
+core = 6.x
+php = 5.1
+
