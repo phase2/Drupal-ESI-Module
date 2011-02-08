@@ -160,49 +160,50 @@ function esi_user($op, &$edit, &$account, $category = NULL) {
  *   Add ESI-configuration options to the block-config pages.
  */
 function esi_form_block_admin_configure_alter(&$form, $form_state) {
-  $handler = variable_get('esi_block_handler', 'esi');
-  ctools_include('plugins');
-  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');
-  if ($class) {
-    // TODO: describe how the cache configs can be configured as defaults in code.
+  // TODO: describe how the cache configs can be configured as defaults in code.
 
-    // load our helper functions
-    require_once(dirname(__FILE__) . '/esi.inc');
+  // load our helper functions
+  require_once(dirname(__FILE__) . '/esi.inc');
 
-    $module = $form['module']['#value'];
-    $delta  = $form['delta']['#value'];
-    $config = _esi__block_settings($module, $delta);
+  $module = $form['module']['#value'];
+  $delta  = $form['delta']['#value'];
+  $config = _esi__block_settings($module, $delta);
 
-    $element['esi_config'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('ESI settings'),
-      '#description' => t('Control how this block is cached on an ESI-enabled reverse proxy.'),
-      '#tree' => TRUE,
-    );
+  $element['esi_config'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('ESI settings'),
+    '#description' => t('Control how this block is cached on an ESI-enabled reverse proxy.'),
+    '#tree' => TRUE,
+  );
 
-    $element['esi_config']['enabled'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Enable ESI'),
-      '#default_value' => $config->enabled,
-    );
+  $element['esi_config']['enabled'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable ESI'),
+    '#default_value' => $config->enabled,
+  );
+ 
+  $options = _esi__ttl_options($config->ttl);
+  $element['esi_config']['ttl'] = array(
+    '#type' => 'select',
+    '#title' => t('TTL'),
+    '#description' => t('Time-to-live on the proxy-cache.'),
+    '#options' => $options,
+    '#default_value' => $config->ttl,
+  );
 
-    $h_obj = new $class();
-    $h_obj->config_form($element, $config);
-
-    // inject our ESI config-fieldset onto the form,
-    // just after the 'block_settings' fieldset.
-    $i = 1;
-    foreach ($form as $key => $value) {
-      if ($key == 'block_settings') {
-        break;
-      }
-      $i++;
+  // inject our ESI config-fieldset onto the form,
+  // just after the 'block_settings' fieldset.
+  $i = 1;
+  foreach ($form as $key => $value) {
+    if ($key == 'block_settings') {
+      break;
     }
-    $f = array_slice($form, 0, $i);
-    $f += $element;
-    $f += array_slice($form, $i);
-    $form = $f;
+    $i++;
   }
+  $f = array_slice($form, 0, $i);
+  $f += $element;
+  $f += array_slice($form, $i);
+  $form = $f;
 
   // add a submit-handler to save our config.
   $form['#submit'][] = 'esi__block_config_save';
@@ -218,11 +219,8 @@ function esi__block_config_save($form, $form_state) {
   $delta  = $form_state['values']['delta'];
 
   $config = new stdClass;
-  // save all child keys of esi_config so that any plugin added data
-  // is saved
-  foreach ($form_state['values']['esi_config'] as $key => $value) {
-    $config->$key = $value;
-  }
+  $config->enabled = $form_state['values']['esi_config']['enabled'];
+  $config->ttl     = $form_state['values']['esi_config']['ttl'];
 
   _esi__block_settings($module, $delta, $config);
 }
@@ -258,6 +256,31 @@ function esi__block_handler($bid, $page = NULL) {
 
   // get the block into a format that can be passed to view-blockk.
   $block = _esi__get_block($theme, $region, $module, $delta);
+  /**
+   * Pass PER-USER or PER-ROLE cache info to varnish.
+   *
+   * No-cache is header (TTL) controlled.
+   * Per-page is passed as a url argument
+   */
+  if ($block->cache == BLOCK_NO_CACHE) {
+    header("Cache-Control: no-cache, max-age=0");
+  }
+  elseif ($block->cache & BLOCK_CACHE_PER_USER) {
+    // "Cache-control: private" advises proxies that the content is
+    // user-specific.  Most proxies will not cache this data - a clever proxy
+    // config may make this cacheable.
+    header("Cache-Control: private");
+  }
+  elseif ($block->cache & BLOCK_CACHE_PER_ROLE) {
+    header("Cache-Control: private");
+  }
+
+  // For all cacheable blocks, set the TTL based on the block config.
+  if ($block->cache != BLOCK_NO_CACHE) {
+    $config = _esi__block_settings($module, $delta);
+    header("Cache-Control: max-age={$config->ttl}");
+  }
+
   $handler = variable_get('esi_block_handler', 'esi');
   ctools_include('plugins');
   $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');
