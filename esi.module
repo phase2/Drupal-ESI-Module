@@ -41,9 +41,98 @@ function esi_theme_registry_alter(&$theme_registry) {
   $theme_registry['blocks']['include files'] = array( "./{$path}/esi.theme.inc");
   $theme_registry['blocks']['theme path']  = $path;
   $theme_registry['blocks']['theme paths'] = array($path);
+
+  // let other modules declare themeable elements eligible for replacement
+  // override their rendering to insert ourselves in the process
+  $handler = variable_get('esi_theme_handler', 'esi');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'theme_handler');
+  if ($class) {
+    $ho = new $class(); 
+    $values = module_invoke_all('esisource');
+
+    $theme_keys = array_keys($values['theme']);
+    foreach ($theme_keys as $theme_key) {
+      $theme_registry[$theme_key]['preprocess functions'][] = 'esi_preprocess_esi';
+      $ho->theme_paths($theme_registry[$theme_key]['theme paths']);
+    }
+  }
 }
 
+/**
+ * 
+ */
+function esi_preprocess_esi(&$vars, $hook) {
+  global $base_path;
+  $handler = variable_get('esi_theme_handler', 'esi');
+  ctools_include('plugins');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'theme_handler');
+  if ($class) {
+    $ho = new $class(); 
+    if ($ho->send_esi()) {
+      $values = module_invoke_all('esisource');
+      $esi_settings = $values['theme'][$hook];
+      $cachepath = '-';
+      if ($esi_settings['cache'] & BLOCK_CACHE_PER_PAGE) {
+        $cachepath = base64_encode($_GET['q']);
+      }
 
+      $source = $base_path . 'esi/theme/' . $hook . '/' . $cachepath .  _esi__parse_source($values['theme'][$hook]['source arguments']);
+      $vars['esi_source'] = $source;
+      $ho->preprocess($vars, $esi_settings);
+    }
+  }
+}
+
+/**
+ * Callback function to return the plain-text content of a theme function. Given the theme_key
+ * it prints the content of the rendered theme element for use as an Edge-side include.
+ *
+ * @param $theme_key
+ *    The string theme key to replace as an edge-side include
+ */
+function esi__theme_handler($theme_key) {
+  $values = module_invoke_all('esisource');
+  $esi_data = $values['theme'][$theme_key];
+  $arg_pos = 4; // esi/theme/$theme_key/$page/4/5/6/7...
+
+  $callbacks = $esi_data['argument callbacks'];
+  $cache = $esi_data['cache'];
+  if ($cache & BLOCK_CACHE_PER_PAGE) {
+    $_GET['q'] = (base64_decode(arg(3)));
+  }
+  $callback_vars = array();
+  foreach ($callbacks as $callback_data) {
+    foreach ($callback_data as $callback_var => $callback) {
+      $arg = filter_xss(check_plain(arg($arg_pos)));
+      $callback_vars[$callback_var] = $callback($arg);
+      ++$arg_pos; 
+    }
+  }
+
+  $variables = $esi_data['theme variables'];
+  $theme_vars = array($theme_key);
+  foreach ($variables as $variable => $callback_data) {
+    // If this is a scalar that starts with '%', then no callback sould be executed; instead,
+    // The corresponding variable in the callback_vars should be used. 
+    if(!is_array($callback_data)) {
+      $callback_data = ltrim($callback_data, '%');
+      $theme_vars[$variable] = $callback_vars[$callback_data];
+    } else {
+      foreach ($callback_data as $callback => $varnames) {
+        $theme_vars[$variable] = call_user_func_array($callback, $callback_vars);
+      }
+    }
+  }
+
+  $handler = variable_get('esi_theme_handler', 'esi');
+  ctools_include('plugins');
+  $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'theme_handler');
+  if ($class) {
+    $ho = new $class(); 
+    echo $ho->theme($theme_vars, $esi_data);
+  }
+  return NULL;
+}
 
 /**
  * Implementation of hook_menu().
@@ -52,8 +141,15 @@ function esi_theme_registry_alter(&$theme_registry) {
 function esi_menu() {
   return array(
     'esi/block/%' => array(
-      'title' => 'ESI handler',
+      'title' => 'ESI Block handler',
       'page callback' => 'esi__block_handler',
+      'page arguments' => array(2),
+      'access callback' => TRUE,
+      'type' => MENU_CALLBACK
+    ),
+    'esi/theme/%' => array(
+      'title' => 'ESI Theme handler',
+      'page callback' => 'esi__theme_handler',
       'page arguments' => array(2),
       'access callback' => TRUE,
       'type' => MENU_CALLBACK
@@ -77,7 +173,7 @@ function esi_settings_form() {
   $plugs = ctools_get_plugins('esi', 'plugins');
 
   $plugin_handlers = array('block_handler' => 'Block',
-                           #'theme_handler' => 'Theme',
+                           'theme_handler' => 'Theme',
                            #'form_handler' => 'Form'
                           );
   foreach ($plugin_handlers as $handler => $label) {
@@ -294,6 +390,53 @@ function esi__block_handler($bid, $page = NULL) {
 
   echo $output;
   return NULL;
+}
+
+/**
+ * turns the information that comes back from an hook_esisource call
+ * into  a callback url
+ *
+ * Currently supported substitutions
+ *   %uid into the uid of the current logged in user
+ *   %uid_by_path into the uid of the user page currently being viewed
+ *   %nid into the nid of the current node
+ */
+function _esi__parse_source($elements = array()) {
+  $new_elements = array();
+  foreach ($elements as $element) {
+    if (strpos($element, '%') === 0) {
+      $element = ltrim($element, '%');
+      $func = "_esi_{$element}_get_val";
+      if (function_exists($func)) {
+        $element = $func();
+      }   
+    }   
+    $new_elements[] = $element;
+  }
+  return ((!empty($new_elements)) ? '/' . join('/', $new_elements) : '');
+}
+
+/**
+ * helper function for building URL for ESI eligible theme element callback
+ */
+function _esi_nid_get_val() {
+  if (arg(0) == 'node' && is_numeric(arg(1))) {
+    return intval(arg(1));
+  }
+}
+
+/**
+ * helper function for building URL for ESI eligible theme element callback
+ */
+function _esi_uid_get_val() {
+  global $user;
+  return $user->uid;
+}
+
+function _esi_uid_by_path_get_val() {
+  if (arg(0) == 'user' && is_numeric(arg(1))) {
+    return intval(arg(1));
+  }
 }
 
 /**

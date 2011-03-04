@@ -14,6 +14,12 @@ function varnish_esi_esi_plugins() {
         'file' => 'varnish_esi_block.inc',
         'parent' => 'esi',
       ),
+      'theme_handler' => array(
+        'class' => 'varnish_esi_theme',
+        'path' => drupal_get_path('module', 'varnish_esi') .'/classes',
+        'file' => 'varnish_esi_theme.inc',
+        'parent' => 'esi',
+      ),
     ),
   );
 }

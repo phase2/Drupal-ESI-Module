@@ -14,6 +14,12 @@ function akamai_esi_esi_plugins() {
         'file' => 'akamai_esi_block.inc',
         'parent' => 'esi',
       ),
+      'theme_handler' => array(
+        'class' => 'akamai_esi_theme',
+        'path' => drupal_get_path('module', 'akamai_esi') .'/classes',
+        'file' => 'akamai_esi_theme.inc',
+        'parent' => 'esi',
+      ),
     ),
   );
 }

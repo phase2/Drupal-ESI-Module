@@ -52,3 +52,88 @@ function esi_test_block($op = 'list', $delta = 0, $edit = array()) {
       return $block;
   }
 }
+
+/**
+ * hook theme implementation
+ */
+function esi_test_theme() {
+  $theme = array(
+    'esi_test_user_item' => array(
+      'path' => drupal_get_path('module', 'esi_test') . '/theme', 
+      'template' => 'esi_test_user_item',
+      'arguments' => array('username' => NULL),
+    ),
+    'esi_test_role_item' => array(
+      'path' => drupal_get_path('module', 'esi_test') . '/theme', 
+      'template' => 'esi_test_role_item',
+      'arguments' => array('userroles' => NULL),
+    ),
+    'esi_test_page_item' => array(
+      'path' => drupal_get_path('module', 'esi_test') . '/theme', 
+      'template' => 'esi_test_page_item',
+    ),
+  );
+  return $theme;
+}
+
+/**
+ * append themable elements to body content of a node when enabled
+ */
+function esi_test_preprocess_node(&$vars) {
+  global $user;
+  $vars['content'] .= theme('esi_test_user_item', check_plain($user->name));
+  $vars['content'] .= theme('esi_test_role_item', check_plain(join(',', $user->roles)));
+  $vars['content'] .= theme('esi_test_page_item');
+}
+
+/**
+ * describes which themable elements may be substituted with edge side includes
+ * and how to generate a callback with the data necessary to theme them for 
+ * insertion
+ */
+function esi_test_esisource() {
+  return array(
+    'theme' => array(
+      'esi_test_user_item' => array(
+        'source arguments' => array('%uid'), // how to build the esi source callback, this should add any data to the path that will be needed by argument callbacks to set theme variables, items starting with % will be automatically substituted, see _esi__parse_source for documentation on supported substitutions
+        'argument callbacks' => array(array('username' => 'esi_test_username_load')), // callback to use for source argument in matching position, format is variablename which can be later referenced in theme variables as %variblename => function to call passing source arguments in this position
+        'theme variables' => array('username' => '%username'), // setup for variables that will be passed to theme function on callback, items starting with % will be substituted based on values loaded into variables during argument callbacks
+        'cache' => BLOCK_CACHE_PER_USER, // make use of the block cache constants so that esi module knows how to interact with this element
+      ),
+      'esi_test_role_item' => array(
+        'source arguments' => array('%uid'), 
+        'argument callbacks' => array(array('userroles' => 'esi_test_userroles_load')),
+        'theme variables' => array('userroles' => '%userroles'),
+        'cache' => BLOCK_CACHE_PER_ROLE,
+      ),
+      'esi_test_page_item' => array(
+        'source arguments' => array(), 
+        'argument callbacks' => array(),
+        'theme variables' => array(),
+        'cache' => BLOCK_CACHE_PER_PAGE,
+      ),
+    ),
+  );
+}
+
+/**
+ * helper function for setting variables for themable items on ESI callbacks
+ */
+function esi_test_username_load($uid) {
+  $user = user_load(array('uid' => $uid));
+  if ($user) {
+    return $user->name;
+  }
+  return NULL;
+}
+
+/**
+ * helper function for setting variables for themable items on ESI callbacks
+ */
+function esi_test_userroles_load($uid) {
+  $user = user_load(array('uid' => $uid));
+  if ($user) {
+    return join(',', $user->roles);
+  }
+  return NULL;
+}
