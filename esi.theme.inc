@@ -44,6 +44,12 @@ function theme_esi_tag($block) {
     $src .= '/' . base64_encode($_GET['q']);
   }
 
+  // Finally, if the cache-mode is PER-USER or PER-ROLE, advise the proxy.
+  // Ideally, the proxy will remove this parameter.
+  if ($block->cache & BLOCK_CACHE_PER_USER || $block->cache & BLOCK_CACHE_PER_ROLE) {
+    $src .= '/CACHE=' . ($block->cache & BLOCK_CACHE_PER_USER ? 'USER' : 'ROLE');
+  }
+
   $handler = variable_get('esi_block_handler', 'esi');
   ctools_include('plugins');
   $class = ctools_plugin_load_class('esi', 'plugins', $handler, 'block_handler');

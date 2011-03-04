@@ -6,12 +6,7 @@ class esi_block {
   }
 
   public function replace_block($callback, &$block) {
-    if (($block->cache & BLOCK_CACHE_PER_USER || $block->cache & BLOCK_CACHE_PER_ROLE)) {
-      return '<esi:include src="' . $callback . '" />';
-    }
-    else {
-      return theme('block', $block);
-    }
+    return '<esi:include src="' . $callback . '" />';
   }
 
   public function get_block($callback, &$block) {
